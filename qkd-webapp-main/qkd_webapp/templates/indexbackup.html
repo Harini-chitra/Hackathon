@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Protocol Simulator - Online</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Inter:wght@300;400;600&display=swap');
+
+        :root {
+            --bg: #0c1824;
+            --bg-grad-1: #0b1b2a;
+            --bg-grad-2: #12283f;
+            --text: #e5f3ff;
+            --muted: #b7c5d3;
+            --panel: rgba(255,255,255,0.06);
+            --panel-border: rgba(173, 216, 230, 0.25);
+            --glow: #3de5ff;
+            --glow-2: #00ffd1;
+            --success: #00ff88;
+            --danger: #ff4d6d;
+            --shadow: 0 10px 30px rgba(0,0,0,.45);
+        }
+
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            font-family: Inter, sans-serif;
+            background: radial-gradient(1200px 600px at 20% 0%, var(--bg-grad-2), transparent),
+                        radial-gradient(1200px 800px at 80% 20%, var(--bg-grad-2), transparent),
+                        linear-gradient(160deg, var(--bg-grad-1), var(--bg));
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            padding: 2rem 0;
+            background: linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.0));
+        }
+
+        .brand {
+            font-family: Orbitron, sans-serif;
+            font-size: 3rem;
+            font-weight: 800;
+            color: #b9ffff;
+            text-shadow: 0 0 20px rgba(61,229,255,.8);
+            margin: 0;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: var(--muted);
+            margin-top: 0.5rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 1fr; /* Stack panels vertically */
+            gap: 2rem;
+        }
+
+        .main-panel, .side-panel {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 18px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-connected { background: var(--success); }
+        .status-disconnected { background: var(--danger); }
+        .status-waiting { background: #ffa500; }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        .connection-status.connected {
+            background: rgba(0,255,136,.1);
+            border: 1px solid rgba(0,255,136,.3);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(255,77,109,.1);
+            border: 1px solid rgba(255,77,109,.3);
+        }
+
+        .form-group {
+            margin: 1.5rem 0;
+        }
+
+        label {
+            display: block;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid rgba(61,229,255,.55);
+            border-radius: 12px;
+            background: linear-gradient(180deg, rgba(7,18,35,.95), rgba(5,12,24,.9));
+            color: var(--text);
+            box-shadow: 0 0 0 3px rgba(61,229,255,.18);
+            font-size: 16px;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(61,229,255,.5);
+            border-color: rgba(61,229,255,.85);
+        }
+
+        /* Fix dropdown options visibility */
+        select option {
+            background: #1a2332;
+            color: var(--text);
+            padding: 8px 12px;
+            border: none;
+        }
+
+        select option:hover {
+            background: #2a3442;
+            color: var(--glow);
+        }
+
+        select option:checked {
+            background: var(--glow);
+            color: #000;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: 0;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            background: linear-gradient(180deg, rgba(0,255,136,.28), rgba(61,229,255,.28));
+            color: var(--text);
+            border: 1px solid rgba(0,255,136,.45);
+            box-shadow: 0 6px 18px rgba(0,0,0,.45);
+            transition: all 0.2s;
+            margin: 5px;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,.6);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .participants {
+            display: flex;
+            justify-content: space-around;
+            margin: 1rem 0;
+        }
+
+        .participant {
+            text-align: center;
+            padding: 1rem;
+            border-radius: 8px;
+            background: rgba(0,0,0,.2);
+            border: 2px solid transparent;
+            min-width: 80px;
+        }
+
+        .participant.active { border-color: var(--success); }
+        .participant.you { border-color: var(--glow); }
+
+        .log {
+            background: rgba(0,0,0,.4);
+            border: 1px solid rgba(173,216,230,.18);
+            border-radius: 8px;
+            padding: 1rem;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            margin: 0.5rem 0;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid rgba(255,255,255,.1);
+        }
+
+        .log-info { color: var(--text); }
+        .log-success { color: var(--success); }
+        .log-error { color: var(--danger); }
+        .log-quantum { color: var(--glow); }
+
+        .quantum-viz {
+            margin: 2rem 0;
+        }
+
+        .quantum-visualization {
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        .qubits {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 10px 0;
+            justify-content: center;
+        }
+
+        .qubit {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin: 4px;
+            background: linear-gradient(45deg, var(--glow), var(--glow-2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .results {
+            background: rgba(0,255,136,.1);
+            border: 1px solid rgba(0,255,136,.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem auto; /* center horizontally */
+            max-width: 900px;  /* reduce width so it doesn't look too big */
+        }
+
+        .results h3 {
+            color: var(--success);
+            margin-bottom: 10px;
+        }
+
+        .hidden { display: none; }
+
+        .section-title {
+            color: var(--glow);
+            font-weight: 600;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        small {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            
+            .brand {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="brand">🔬 Quantum Protocol Simulator</h1>
+        <p class="subtitle">Real-time BB84, E91, and COW Quantum Key Distribution</p>
+    </div>
+    
+    <div class="container">
+        <!-- Control Panel -->
+        <div class="main-panel">
+            <div id="connectionStatus" class="connection-status disconnected">
+                <span class="status-indicator status-disconnected"></span>
+                Disconnected from server
+            </div>
+                
+                <!-- Initial Setup -->
+                <div id="setupPanel">
+                    <div class="form-group">
+                        <label for="protocol">Choose Protocol:</label>
+                        <select id="protocol">
+                            <option value="">Select a protocol...</option>
+                            <option value="BB84">BB84 - Quantum Key Distribution</option>
+                            <option value="E91">E91 - Entanglement Based QKD</option>
+                            <option value="COW">COW - Coherent One-Way QKD</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="role">Choose Your Role:</label>
+                        <select id="role">
+                            <option value="">Select your role...</option>
+                            <option value="alice">Alice (Sender)</option>
+                            <option value="bob">Bob (Receiver)</option>
+                            <option value="eve">Eve (Eavesdropper)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sessionId">Session ID (leave empty to create new):</label>
+                        <input type="text" id="sessionId" placeholder="Enter session ID to join existing session">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="numQubits">Number of Qubits:</label>
+                        <input type="number" id="numQubits" value="5" min="1" max="9">
+                        <small style="color: #666; font-size: 12px;">Maximum 9 qubits supported by simulator</small>
+                    </div>
+                    
+                    <button id="startBtn">Start Quantum Protocol</button>
+                </div>
+                
+                <!-- Session Active Panel -->
+                <div id="sessionPanel" class="hidden">
+                    <h3>Session: <span id="currentSessionId"></span></h3>
+                    <p><strong>Protocol:</strong> <span id="currentProtocol"></span></p>
+                    <p><strong>Your Role:</strong> <span id="yourRole"></span></p>
+                    
+                    <div class="participants">
+                        <div id="aliceStatus" class="participant">
+                            <div>Alice</div>
+                            <div>Sender</div>
+                        </div>
+                        <div id="bobStatus" class="participant">
+                            <div>Bob</div>
+                            <div>Receiver</div>
+                        </div>
+                        <div id="eveStatus" class="participant">
+                            <div>Eve</div>
+                            <div>Eavesdropper</div>
+                        </div>
+                    </div>
+                    
+                    <div id="roleActions">
+                        <!-- Alice Actions -->
+                        <div id="aliceActions" class="hidden">
+                            <button id="prepareQubitsBtn">Prepare & Send Qubits</button>
+                        </div>
+                        
+                        <!-- Bob Actions -->
+                        <div id="bobActions" class="hidden">
+                            <p id="bobStatus">Waiting for qubits...</p>
+                            <button id="measureBtn" class="hidden">Measure Qubits</button>
+                        </div>
+                        
+                        <!-- Eve Actions -->
+                        <div id="eveActions" class="hidden">
+                            <p id="eveStatus">Waiting to intercept...</p>
+                            <button id="interceptBtn" class="hidden">Intercept & Forward</button>
+                        </div>
+                    </div>
+                    
+                    <button id="resetBtn">Reset Session</button>
+                </div>
+        </div>
+        
+        <!-- Results and Visualization Panel -->
+        <div class="side-panel">
+            <h3 class="section-title">Activity Log</h3>
+            <div id="log" class="log"></div>
+            
+            <div id="quantumViz" class="quantum-viz hidden">
+                <h4 class="section-title">Quantum States:</h4>
+                <div id="qubitDisplay"></div>
+            </div>
+            
+            <div id="results" class="results hidden">
+                <h3>Protocol Results</h3>
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class QuantumProtocolApp {
+            constructor() {
+                this.socket = null;
+                this.participantId = null;
+                this.sessionId = null;
+                this.role = null;
+                this.protocol = null;
+
+                // Cache circuit images to show both later in results
+                this.aliceCircuitImage = null;
+                this.bobCircuitImage = null;
+                this.eveCircuitImage = null;
+                
+                this.initializeEventListeners();
+                this.connectToServer();
+            }
+            
+            initializeEventListeners() {
+                document.getElementById('startBtn').onclick = () => this.handleStart();
+                document.getElementById('prepareQubitsBtn').onclick = () => this.prepareQubits();
+                document.getElementById('measureBtn').onclick = () => this.measureQubits();
+                document.getElementById('interceptBtn').onclick = () => this.interceptQubits();
+                document.getElementById('resetBtn').onclick = () => this.resetSession();
+            }
+            
+            connectToServer() {
+                this.socket = io();
+                
+                this.socket.on('connect', () => {
+                    this.log('Connected to server', 'success');
+                    this.updateConnectionStatus(true);
+                });
+                
+                this.socket.on('disconnect', () => {
+                    this.log('Disconnected from server', 'error');
+                    this.updateConnectionStatus(false);
+                });
+                
+                this.socket.on('connected', (data) => {
+                    this.participantId = data.participant_id;
+                    this.log(`Assigned participant ID: ${this.participantId}`, 'info');
+                });
+                
+                this.socket.on('session_created', (data) => {
+                    this.sessionId = data.session_id;
+                    this.log(`Session created: ${data.session_id}`, 'success');
+                    this.showSessionPanel();
+                });
+                
+                this.socket.on('joined_session', (data) => {
+                    this.sessionId = data.session_id;
+                    this.role = data.role;
+                    this.protocol = data.protocol;
+                    this.log(`Joined session ${data.session_id} as ${data.role}`, 'success');
+                    this.showSessionPanel();
+                    this.updateRoleUI();
+                });
+                
+                this.socket.on('session_status', (data) => {
+                    this.updateParticipants(data.participants);
+                });
+                
+                this.socket.on('alice_prepared', (data) => {
+                    if (data.bits) {
+                        this.log(`Alice prepared ${data.bits.length} qubits for ${this.protocol}`, 'quantum');
+                        this.displayQubits(data.bits, data.bases, 'Alice');
+                    } else if (data.sequence) {
+                        this.log(`Alice prepared ${data.sequence.length} COW pulses`, 'quantum');
+                        this.displaySequence(data.sequence, 'Alice COW Pulses');
+                    } else if (data.num_pairs) {
+                        this.log(`Alice generated ${data.num_pairs} E91 entangled pairs`, 'quantum');
+                        this.displayQubits(data.bits, [], 'Alice E91 Bits');
+                    }
+                    
+                    // Display circuit image if available
+                    if (data.circuit_image) {
+                        this.aliceCircuitImage = data.circuit_image;
+                        this.displayCircuitImage(data.circuit_image, 'Alice\'s Quantum Circuit');
+                    }
+                });
+                
+                this.socket.on('qubits_intercept', (data) => {
+                    if (this.role === 'eve') {
+                        this.log(`😈 Intercepted ${data.num_qubits} qubits from Alice!`, 'quantum');
+                        this.interceptedCircuit = data.circuit;
+                        document.getElementById('eveStatus').textContent = `${data.protocol} qubits intercepted! Auto-forwarding...`;
+                        
+                        // Auto-forward like CLI (Eve does everything automatically)
+                        setTimeout(() => {
+                            this.interceptQubits();
+                        }, 1000);
+                    }
+                });
+                
+                this.socket.on('sequence_intercept', (data) => {
+                    if (this.role === 'eve') {
+                        this.log(`😈 Intercepted ${data.num_bits} COW pulses from Alice!`, 'quantum');
+                        this.interceptedSequence = data.sequence;
+                        document.getElementById('eveStatus').textContent = `${data.protocol} sequence intercepted! Auto-forwarding...`;
+                        
+                        // Auto-forward like CLI
+                        setTimeout(() => {
+                            this.interceptQubits();
+                        }, 1000);
+                    }
+                });
+                
+                this.socket.on('pairs_intercept', (data) => {
+                    if (this.role === 'eve') {
+                        this.log(`😈 Intercepted ${data.num_pairs} E91 entangled pairs from Alice!`, 'quantum');
+                        this.interceptedPairs = data.bits;
+                        document.getElementById('eveStatus').textContent = `${data.protocol} pairs intercepted! Auto-forwarding...`;
+                        
+                        // Auto-forward like CLI
+                        setTimeout(() => {
+                            this.interceptQubits();
+                        }, 1000);
+                    }
+                });
+                
+                this.socket.on('qubits_received', (data) => {
+                    this.log(`Received ${data.num_qubits} qubits from ${data.source} (${data.protocol})`, 'quantum');
+                    
+                    // Display circuit image if available
+                    if (data.circuit_image) {
+                        this.displayCircuitImage(data.circuit_image, `Circuit from ${data.source}`);
+                    }
+                    
+                    if (this.role === 'bob') {
+                        // CRITICAL FIX: Only measure if this is from Eve OR if it's from Alice and we're sure no Eve will follow
+                        if (data.source === 'Eve') {
+                            // Cancel Alice's timeout since Eve is forwarding
+                            if (this.aliceCircuitTimeout) {
+                                clearTimeout(this.aliceCircuitTimeout);
+                                this.aliceCircuitTimeout = null;
+                            }
+                            
+                            // This is Eve's forged circuit - measure it immediately
+                            document.getElementById('bobStatus').textContent = `${data.protocol} qubits received from Eve. Measuring forged circuit...`;
+                            this.log('🚨 Eve detected! Measuring Eve\'s forged qubits...', 'quantum');
+                            setTimeout(() => {
+                                this.socket.emit('quantum_action', {
+                                    session_id: this.sessionId,
+                                    action: 'measure'
+                                });
+                            }, 1000);
+                        } else if (data.source === 'Alice') {
+                            // This is Alice's original circuit - but Eve might intercept and forward later
+                            // So we wait a bit to see if Eve forwards a circuit
+                            document.getElementById('bobStatus').textContent = `${data.protocol} qubits received from Alice. Checking for eavesdropper...`;
+                            this.log('Received qubits from Alice, waiting to see if Eve forwards...', 'quantum');
+                            
+                            // Wait 3 seconds for Eve to forward, then measure Alice's circuit if no Eve
+                            this.aliceCircuitTimeout = setTimeout(() => {
+                                this.log('No Eve detected, measuring Alice\'s original circuit...', 'quantum');
+                                this.socket.emit('quantum_action', {
+                                    session_id: this.sessionId,
+                                    action: 'measure'
+                                });
+                            }, 3000);
+                        }
+                    }
+                });
+                
+                this.socket.on('sequence_received', (data) => {
+                    if (this.role === 'bob') {
+                        this.log(`[Bob] Received ${data.num_bits} COW pulses from ${data.source}`, 'quantum');
+                        this.log(`[Bob] Sequence: [${data.sequence.join(', ')}]`, 'quantum');
+                        // Auto-measure like CLI
+                        setTimeout(() => {
+                            this.socket.emit('quantum_action', {
+                                session_id: this.sessionId,
+                                action: 'measure'
+                            });
+                        }, 1000);
+                    }
+                });
+                
+                this.socket.on('pairs_received', (data) => {
+                    if (this.role === 'bob') {
+                        this.log(`[Bob] Received ${data.num_pairs} E91 entangled pairs from ${data.source}`, 'quantum');
+                        this.log(`[Bob] Bits: [${data.bits.join(', ')}]`, 'quantum');
+                        // Store bits for measurement
+                        this.receivedBits = data.bits;
+                        // Auto-measure like CLI
+                        setTimeout(() => {
+                            this.socket.emit('quantum_action', {
+                                session_id: this.sessionId,
+                                action: 'measure',
+                                bits: this.receivedBits
+                            });
+                        }, 1000);
+                    }
+                });
+                
+                this.socket.on('bob_measured', (data) => {
+                    if (this.role === 'bob') {
+                        this.log(`Bob measured qubits with bases: [${data.bases.join(', ')}]`, 'quantum');
+                        this.log(`Bob's measured bits: [${data.bits.join(', ')}]`, 'quantum');
+                        this.log('Sending bases to Alice via classical channel...', 'info');
+                    }
+                });
+                
+                this.socket.on('bob_bases_received', (data) => {
+                    if (this.role === 'alice') {
+                        this.log(`Received Bob's bases: [${data.bases.join(', ')}]`, 'info');
+                        this.log('Alice comparing bases...', 'info');
+                        setTimeout(() => {
+                            this.socket.emit('quantum_action', {
+                                session_id: this.sessionId,
+                                action: 'sift_key'
+                            });
+                        }, 1000);
+                    }
+                });
+                
+                this.socket.on('alice_sifted', (data) => {
+                    if (this.role === 'alice') {
+                        this.log(`Matching base indices: [${data.matching_indices.join(', ')}]`, 'info');
+                        this.log(`Alice's sifted key: [${data.sifted_key.join(', ')}]`, 'info');
+                        this.log('Sending sifted key to Bob for QBER calculation...', 'info');
+                    }
+                });
+                
+                this.socket.on('classical_waiting', (data) => {
+                    if (this.role === 'alice') {
+                        this.log('\n--- Classical Communication ---', 'info');
+                        this.log('Classical channel open. Waiting for Bob...', 'info');
+                    }
+                });
+                
+                this.socket.on('bob_connected', (data) => {
+                    if (this.role === 'alice') {
+                        this.log('Bob connected for key sifting.', 'info');
+                    }
+                });
+                
+                this.socket.on('bob_bases_sent', (data) => {
+                    if (this.role === 'alice') {
+                        this.log(`Received Bob's bases: [${data.bases.join(', ')}]`, 'info');
+                    }
+                });
+                
+                this.socket.on('bases_compared', (data) => {
+                    if (this.role === 'alice') {
+                        this.log(`Matching base indices: [${data.matching_indices.join(', ')}]`, 'info');
+                        this.log(`Alice's sifted key: [${data.sifted_key.join(', ')}]`, 'info');
+                        this.log('Waiting for Bob to calculate QBER...', 'info');
+                    }
+                });
+                
+                this.socket.on('eve_forwarded', (data) => {
+                    if (this.role === 'eve') {
+                        this.log('😈 Modified circuit forwarded to Bob!', 'success');
+                        document.getElementById('interceptBtn').classList.add('hidden');
+                        document.getElementById('eveStatus').textContent = 'Circuit forwarded. Waiting for results...';
+                    }
+                });
+                
+                this.socket.on('waiting_for_qubits', (data) => {
+                    this.log(data.message, 'info');
+                });
+                
+                this.socket.on('waiting_to_intercept', (data) => {
+                    this.log(data.message, 'info');
+                });
+
+                // Step-by-step classical communication logs (mirror CLI output)
+                this.socket.on('classical_log', (data) => {
+                    this.log(data.message, 'info');
+                });
+                
+                this.socket.on('circuit_display', (data) => {
+                    this.displayCircuitImage(data.circuit_image, data.title);
+                    this.log(`Circuit displayed: ${data.title}`, 'quantum');
+                });
+                
+                this.socket.on('measurement_complete', (data) => {
+                    if (data.bits) {
+                        this.log(`${this.protocol} measurement completed`, 'quantum');
+                        this.displayQubits(data.bits, data.bases, 'Bob');
+                    } else if (data.sequence) {
+                        this.log('COW measurement completed', 'quantum');
+                        this.displaySequence(data.sequence, 'Bob COW Measurements');
+                    }
+                    
+                    // Display circuit image if available
+                    if (data.circuit_image) {
+                        this.bobCircuitImage = data.circuit_image;
+                        this.displayCircuitImage(data.circuit_image, 'Bob\'s Measurement Circuit');
+                    }
+                });
+                
+                this.socket.on('interception_complete', (data) => {
+                    this.log(`${this.protocol} interception completed`, 'quantum');
+                    
+                    if (data.bits) {
+                        this.displayQubits(data.bits, data.bases, 'Eve');
+                    } else if (data.original_sequence && data.tampered_sequence) {
+                        this.log(`COW tampering: ${data.original_sequence.length} pulses modified`, 'quantum');
+                        this.displaySequence(data.tampered_sequence, 'Eve Tampered COW Pulses');
+                    } else if (data.original_bits && data.tampered_bits) {
+                        this.log(`E91 tampering: ${data.original_bits.length} bits modified`, 'quantum');
+                        this.displayQubits(data.tampered_bits, [], 'Eve Tampered E91 Bits');
+                    }
+                    
+                    // Display circuit image if available
+                    if (data.circuit_image) {
+                        this.eveCircuitImage = data.circuit_image;
+                        this.displayCircuitImage(data.circuit_image, 'Eve\'s Fake Circuit');
+                    }
+                });
+                
+                this.socket.on('classical_phase_started', (data) => {
+                    this.log(`Starting classical communication for ${data.protocol}...`, 'info');
+                });
+                
+                this.socket.on('protocol_complete', (data) => {
+                    // Show CLI-style final results for all protocols
+                    if (this.role === 'bob') {
+                        this.log('\n--- BOB\'S FINAL RESULT ---', 'success');
+                        if (data.qber !== undefined) {
+                            // BB84 protocol
+                            this.log(`Quantum Bit Error Rate (QBER): ${(data.qber * 100).toFixed(2)}%`, 'info');
+                        } else if (data.mismatch_percent !== undefined) {
+                            // COW/E91 protocols
+                            this.log(`Mismatch Rate: ${data.mismatch_percent.toFixed(2)}%`, 'info');
+                        }
+                        
+                        if (data.eve_detected) {
+                            this.log('🚨 Eavesdropper DETECTED! Key is discarded.', 'error');
+                        } else {
+                            this.log('✅ No eavesdropper detected. Key is likely secure.', 'success');
+                            if (data.shared_key) {
+                                this.log(`Final shared key: ${data.shared_key}`, 'success');
+                            } else if (data.sifted_key) {
+                                this.log(`Sifted key: [${data.sifted_key.join(', ')}]`, 'success');
+                            }
+                        }
+                        this.log('\nDisplaying final quantum circuit and stats...', 'info');
+                    } else if (this.role === 'alice') {
+                        this.log('\n--- ALICE\'S FINAL RESULT ---', 'success');
+                        if (data.eve_detected) {
+                            this.log('🚨 Eavesdropper DETECTED! Key is discarded.', 'error');
+                        } else {
+                            if (data.qber !== undefined) {
+                                this.log(`✅ Secure key established. QBER = ${(data.qber * 100).toFixed(2)}%.`, 'success');
+                            } else {
+                                this.log('✅ No interference detected. All pulses matched.', 'success');
+                            }
+                            if (data.shared_key) {
+                                this.log(`Final shared key: ${data.shared_key}`, 'success');
+                            } else if (data.sifted_key) {
+                                this.log(`Sifted key: [${data.sifted_key.join(', ')}]`, 'success');
+                            }
+                        }
+                    }
+                    
+                    this.showResults(data);
+                    // Also display final circuit and stats prominently like CLI
+                    if (data.final_circuit_image || data.stats_plot) {
+                        this.displayFinalArtifacts(data);
+                    }
+                });
+                
+                this.socket.on('error', (data) => {
+                    this.log(`Error: ${data.message}`, 'error');
+                });
+            }
+            
+            handleStart() {
+                const protocol = document.getElementById('protocol').value;
+                const role = document.getElementById('role').value;
+                const sessionId = document.getElementById('sessionId').value.trim();
+                
+                if (!protocol || !role) {
+                    this.log('Please select both protocol and role', 'error');
+                    return;
+                }
+                
+                this.protocol = protocol;
+                this.role = role;
+                
+                if (sessionId) {
+                    // Join existing session
+                    this.socket.emit('join_session', {
+                        session_id: sessionId,
+                        role: role
+                    });
+                } else {
+                    // Create new session and join as selected role
+                    this.socket.emit('create_session', {
+                        protocol: protocol
+                    });
+                    
+                    // Auto-join with selected role after session creation
+                    setTimeout(() => {
+                        if (this.sessionId) {
+                            this.socket.emit('join_session', {
+                                session_id: this.sessionId,
+                                role: role
+                            });
+                        }
+                    }, 100);
+                }
+            }
+            
+            prepareQubits() {
+                const numQubits = parseInt(document.getElementById('numQubits').value) || 10;
+                
+                this.socket.emit('start_protocol', {
+                    session_id: this.sessionId,
+                    num_qubits: numQubits
+                });
+                
+                this.log(`Preparing ${numQubits} qubits for ${this.protocol} protocol`, 'quantum');
+                document.getElementById('prepareQubitsBtn').disabled = true;
+            }
+            
+            measureQubits() {
+                this.socket.emit('quantum_action', {
+                    session_id: this.sessionId,
+                    action: 'measure'
+                });
+                
+                this.log('Measuring received qubits...', 'quantum');
+                document.getElementById('measureBtn').disabled = true;
+            }
+            
+            interceptQubits() {
+                let payload = {
+                    session_id: this.sessionId,
+                    action: 'eve_forward'
+                };
+                
+                if (this.interceptedCircuit) {
+                    // BB84 protocol
+                    const forgedCircuit = this.createForgedCircuit(this.interceptedCircuit);
+                    payload.circuit = forgedCircuit;
+                    this.log('😈 Measuring intercepted qubits and forwarding modified circuit...', 'quantum');
+                } else if (this.interceptedSequence) {
+                    // COW protocol
+                    payload.tamper_prob = 0.25; // 25% tampering probability
+                    this.log('😈 Tampering with intercepted COW sequence and forwarding...', 'quantum');
+                } else if (this.interceptedPairs) {
+                    // E91 protocol
+                    payload.tamper_prob = 0.3; // 30% tampering probability
+                    this.log('😈 Tampering with intercepted E91 pairs and forwarding...', 'quantum');
+                } else {
+                    this.log('No data to intercept!', 'error');
+                    return;
+                }
+                
+                this.socket.emit('quantum_action', payload);
+                document.getElementById('interceptBtn').disabled = true;
+            }
+            
+            createForgedCircuit(originalCircuit) {
+                // This is just a placeholder - the real measurement happens server-side
+                // We send the original circuit to the server and let it do the CLI-style measurement
+                return originalCircuit;
+            }
+            
+            resetSession() {
+                this.sessionId = null;
+                this.role = null;
+                this.protocol = null;
+                
+                document.getElementById('setupPanel').classList.remove('hidden');
+                document.getElementById('sessionPanel').classList.add('hidden');
+                document.getElementById('quantumViz').classList.add('hidden');
+                document.getElementById('results').classList.add('hidden');
+                
+                // Reset form
+                document.getElementById('protocol').value = '';
+                document.getElementById('role').value = '';
+                document.getElementById('sessionId').value = '';
+                document.getElementById('numQubits').value = '10';
+                
+                // Reset buttons
+                document.getElementById('prepareQubitsBtn').disabled = false;
+                document.getElementById('measureBtn').disabled = false;
+                document.getElementById('interceptBtn').disabled = false;
+                
+                this.log('Session reset', 'info');
+            }
+            
+            showSessionPanel() {
+                document.getElementById('setupPanel').classList.add('hidden');
+                document.getElementById('sessionPanel').classList.remove('hidden');
+                
+                document.getElementById('currentSessionId').textContent = this.sessionId;
+                document.getElementById('currentProtocol').textContent = this.protocol;
+                document.getElementById('yourRole').textContent = this.role;
+            }
+            
+            updateRoleUI() {
+                // Hide all role actions
+                document.getElementById('aliceActions').classList.add('hidden');
+                document.getElementById('bobActions').classList.add('hidden');
+                document.getElementById('eveActions').classList.add('hidden');
+                
+                // Show appropriate role actions
+                if (this.role === 'alice') {
+                    document.getElementById('aliceActions').classList.remove('hidden');
+                } else if (this.role === 'bob') {
+                    document.getElementById('bobActions').classList.remove('hidden');
+                } else if (this.role === 'eve') {
+                    document.getElementById('eveActions').classList.remove('hidden');
+                }
+                
+                // Mark your participant as "you"
+                document.getElementById(`${this.role}Status`).classList.add('you');
+            }
+            
+            updateParticipants(participants) {
+                ['alice', 'bob', 'eve'].forEach(role => {
+                    const element = document.getElementById(`${role}Status`);
+                    if (participants[role]) {
+                        element.classList.add('active');
+                    } else {
+                        element.classList.remove('active');
+                    }
+                });
+            }
+            
+            updateConnectionStatus(connected) {
+                const statusEl = document.getElementById('connectionStatus');
+                const indicator = statusEl.querySelector('.status-indicator');
+                
+                if (connected) {
+                    statusEl.className = 'connection-status connected';
+                    indicator.className = 'status-indicator status-connected';
+                    statusEl.innerHTML = '<span class="status-indicator status-connected"></span>Connected to server';
+                } else {
+                    statusEl.className = 'connection-status disconnected';
+                    indicator.className = 'status-indicator status-disconnected';
+                    statusEl.innerHTML = '<span class="status-indicator status-disconnected"></span>Disconnected from server';
+                }
+            }
+            
+            displayQubits(bits, bases, source) {
+                const vizEl = document.getElementById('quantumViz');
+                const displayEl = document.getElementById('qubitDisplay');
+                
+                vizEl.classList.remove('hidden');
+                
+                const container = document.createElement('div');
+                container.innerHTML = `<h4>${source}'s Qubits:</h4>`;
+                
+                const qubitsDiv = document.createElement('div');
+                qubitsDiv.className = 'qubits';
+                
+                bits.forEach((bit, i) => {
+                    const qubit = document.createElement('div');
+                    qubit.className = 'qubit';
+                    qubit.textContent = bit;
+                    qubit.title = `Bit: ${bit}, Base: ${bases && bases[i] !== undefined ? (bases[i] ? 'X' : 'Z') : 'N/A'}`;
+                    qubitsDiv.appendChild(qubit);
+                });
+                
+                container.appendChild(qubitsDiv);
+                displayEl.appendChild(container);
+            }
+            
+            displaySequence(sequence, title) {
+                const vizEl = document.getElementById('quantumViz');
+                const displayEl = document.getElementById('qubitDisplay');
+                
+                vizEl.classList.remove('hidden');
+                
+                const container = document.createElement('div');
+                container.innerHTML = `<h4>${title}:</h4>`;
+                
+                const sequenceDiv = document.createElement('div');
+                sequenceDiv.className = 'qubits';
+                
+                sequence.forEach((pulse, i) => {
+                    const pulseEl = document.createElement('div');
+                    pulseEl.className = 'qubit';
+                    pulseEl.textContent = pulse;
+                    pulseEl.title = `Pulse ${i}: ${pulse}`;
+                    sequenceDiv.appendChild(pulseEl);
+                });
+                
+                container.appendChild(sequenceDiv);
+                displayEl.appendChild(container);
+            }
+            
+            displayCircuitImage(imageData, title) {
+                const vizEl = document.getElementById('quantumViz');
+                const displayEl = document.getElementById('qubitDisplay');
+                
+                vizEl.classList.remove('hidden');
+                
+                const container = document.createElement('div');
+                container.innerHTML = `<h4>${title}:</h4>`;
+                
+                const img = document.createElement('img');
+                img.src = imageData;
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                img.style.border = '1px solid #ddd';
+                img.style.borderRadius = '8px';
+                img.style.marginTop = '10px';
+                
+                container.appendChild(img);
+                displayEl.appendChild(container);
+            }
+            
+            showResults(results) {
+                const resultsEl = document.getElementById('results');
+                const contentEl = document.getElementById('resultsContent');
+                
+                resultsEl.classList.remove('hidden');
+                
+                let html = '';
+                
+                // ALWAYS show images for debugging - let's see what we're getting
+                console.log('Results received:', results);
+                console.log('Final circuit image:', results.final_circuit_image ? 'YES' : 'NO');
+                console.log('Stats plot:', results.stats_plot ? 'YES' : 'NO');
+                console.log('Your role:', results.your_role);
+                
+                if (results.your_role === 'eve') {
+                    // Eve's results
+                    if (results.detection_result) {
+                        html = `
+                            <p><strong>Detection Status:</strong> ${results.detection_result.toUpperCase()}</p>
+                        `;
+                        
+                        if (results.qber !== undefined) {
+                            html += `<p><strong>QBER:</strong> ${(results.qber * 100).toFixed(2)}%</p>`;
+                        }
+                        
+                        if (results.mismatches !== undefined) {
+                            html += `<p><strong>Mismatches:</strong> ${results.mismatches}</p>`;
+                            html += `<p><strong>Mismatch Rate:</strong> ${results.mismatch_percent.toFixed(2)}%</p>`;
+                        }
+                        
+                        const logMsg = results.detection_result === 'detected' ? 
+                            'Eve detected! Attack successful!' : 
+                            'Eve not detected. Attack failed.';
+                        this.log(logMsg, results.detection_result === 'detected' ? 'success' : 'error');
+                    }
+                } else {
+                    // Alice and Bob's results
+                    if (this.protocol === 'BB84') {
+                        html = `
+                            <p><strong>Protocol:</strong> BB84 Quantum Key Distribution</p>
+                            <p><strong>QBER:</strong> ${(results.qber * 100).toFixed(2)}%</p>
+                            <p><strong>Eve Detection:</strong> ${results.eve_detected ? 'DETECTED!' : 'Not detected'}</p>
+                            <p><strong>Matching Indices:</strong> ${results.matching_indices ? results.matching_indices.join(', ') : 'N/A'}</p>
+                            <p><strong>Key Length:</strong> ${results.key_length} bits</p>
+                            <p><strong>Sifted Key:</strong> ${results.sifted_key ? results.sifted_key.join('') : 'N/A'}</p>
+                        `;
+                        
+                        const logMsg = results.eve_detected ? 
+                            `BB84 complete - Eve DETECTED! QBER: ${(results.qber * 100).toFixed(2)}%` :
+                            `BB84 complete - Secure key established. QBER: ${(results.qber * 100).toFixed(2)}%`;
+                        
+                        this.log(logMsg, results.eve_detected ? 'error' : 'success');
+                        
+                    } else if (this.protocol === 'COW') {
+                        html = `
+                            <p><strong>Protocol:</strong> COW Coherent One-Way QKD</p>
+                            <p><strong>Mismatches:</strong> ${results.mismatches}/${results.sequence ? results.sequence.length : 'N/A'}</p>
+                            <p><strong>Mismatch Rate:</strong> ${results.mismatch_percent.toFixed(2)}%</p>
+                            <p><strong>Eve Detection:</strong> ${results.eve_detected ? 'DETECTED!' : 'Not detected'}</p>
+                            <p><strong>Key Length:</strong> ${results.key_length} bits</p>
+                            <p><strong>Sifted Key:</strong> ${results.sifted_key ? results.sifted_key.join('') : 'N/A'}</p>
+                        `;
+                        
+                        const logMsg = results.eve_detected ? 
+                            `COW complete - Eve DETECTED! ${results.mismatches} mismatches (${results.mismatch_percent.toFixed(2)}%)` :
+                            `COW complete - No interference detected. All pulses matched.`;
+                        
+                        this.log(logMsg, results.eve_detected ? 'error' : 'success');
+                        
+                    } else if (this.protocol === 'E91') {
+                        html = `
+                            <p><strong>Protocol:</strong> E91 Entanglement-Based QKD</p>
+                            <p><strong>Mismatches:</strong> ${results.mismatches}/${results.bits ? results.bits.length : 'N/A'}</p>
+                            <p><strong>Mismatch Rate:</strong> ${results.mismatch_percent.toFixed(2)}%</p>
+                            <p><strong>Eve Detection:</strong> ${results.eve_detected ? 'DETECTED!' : 'Not detected'}</p>
+                            <p><strong>Key Length:</strong> ${results.key_length} bits</p>
+                            <p><strong>Sifted Key:</strong> ${results.sifted_key ? results.sifted_key.join('') : 'N/A'}</p>
+                        `;
+                        
+                        const logMsg = results.eve_detected ? 
+                            `E91 complete - Eve DETECTED! ${results.mismatches} mismatches (${results.mismatch_percent.toFixed(2)}%)` :
+                            `E91 complete - Entanglement preserved. No eavesdropping detected.`;
+                        
+                        this.log(logMsg, results.eve_detected ? 'error' : 'success');
+                    }
+                }
+                
+                // SIMPLIFIED IMAGE DISPLAY - Always show if available
+                html += `<div style="margin-top: 20px;"><h4>Final Circuit and Stats</h4>`;
+                
+                // Show final circuit image if available
+                if (results.final_circuit_image) {
+                    html += `
+                        <div style='margin-top:15px;'>
+                            <strong>Final BB84 Circuit (Bob's view)</strong><br>
+                            <img src='${results.final_circuit_image}' 
+                                 style='max-width:100%;height:auto;border:1px solid #3a556a;border-radius:8px;margin-top:10px;'
+                                 onerror="console.error('Failed to load final circuit image')">
+                        </div>
+                    `;
+                }
+                
+                // Show stats plot if available
+                if (results.stats_plot) {
+                    html += `
+                        <div style='margin-top:15px;'>
+                            <strong>BB84 Protocol Statistics</strong><br>
+                            <img src='${results.stats_plot}' 
+                                 style='max-width:100%;height:auto;border:1px solid #3a556a;border-radius:8px;margin-top:10px;'
+                                 onerror="console.error('Failed to load stats plot')">
+                        </div>
+                    `;
+                }
+                
+                html += `</div>`;
+                
+                contentEl.innerHTML = html;
+            }
+            
+            // Explicitly render final artifacts into the visualization area for a CLI-like feel
+            displayFinalArtifacts(results) {
+                const vizEl = document.getElementById('quantumViz');
+                const displayEl = document.getElementById('qubitDisplay');
+                vizEl.classList.remove('hidden');
+                
+                const container = document.createElement('div');
+                container.innerHTML = `<h4>Final Circuit and Stats:</h4>`;
+                
+                // Show images based on role - Bob gets final circuit + stats, Alice gets all
+                const role = results.your_role;
+                
+                if (role === 'alice' && results.alice_circuit_image) {
+                    const imgA = document.createElement('img');
+                    imgA.src = results.alice_circuit_image;
+                    imgA.style.maxWidth = '100%';
+                    imgA.style.border = '1px solid #3a556a';
+                    imgA.style.borderRadius = '8px';
+                    imgA.style.marginTop = '10px';
+                    container.appendChild(document.createTextNode("Alice's Circuit"));
+                    container.appendChild(document.createElement('br'));
+                    container.appendChild(imgA);
+                    container.appendChild(document.createElement('br'));
+                }
+                
+                if (results.final_circuit_image) {
+                    const imgB = document.createElement('img');
+                    imgB.src = results.final_circuit_image;
+                    imgB.style.maxWidth = '100%';
+                    imgB.style.border = '1px solid #3a556a';
+                    imgB.style.borderRadius = '8px';
+                    imgB.style.marginTop = '10px';
+                    container.appendChild(document.createTextNode("Final Circuit (Bob's View)"));
+                    container.appendChild(document.createElement('br'));
+                    container.appendChild(imgB);
+                    container.appendChild(document.createElement('br'));
+                }
+                
+                if (results.stats_plot) {
+                    const imgS = document.createElement('img');
+                    imgS.src = results.stats_plot;
+                    imgS.style.maxWidth = '100%';
+                    imgS.style.border = '1px solid #3a556a';
+                    imgS.style.borderRadius = '8px';
+                    imgS.style.marginTop = '10px';
+                    container.appendChild(document.createTextNode("Protocol Statistics"));
+                    container.appendChild(document.createElement('br'));
+                    container.appendChild(imgS);
+                }
+                
+                displayEl.appendChild(container);
+            }
+            
+            log(message, type = 'info') {
+                const logEl = document.getElementById('log');
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+                logEl.appendChild(entry);
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+        }
+        
+        // Initialize the app when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new QuantumProtocolApp();
+        });
+    </script>
+</body>
+</html>

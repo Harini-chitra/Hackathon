@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+qiskit
+qiskit-superstaq
+numpy
+pydantic
+typing_extensions
+matplotlib
+python-socketio
+python-dotenv
+pylatexenc
